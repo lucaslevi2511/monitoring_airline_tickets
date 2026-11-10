@@ -1,22 +1,24 @@
 from langgraph.graph import (
     StateGraph,
     START,
-    END,
 )
 
 from state import FlightState
 
 from nodes import (
+    parse_user_request,
     search_flights,
     filter_flights,
     rank_flights,
     review_flights,
 )
-
-
 
 builder = StateGraph(FlightState)
 
+builder.add_node(
+    "input",
+    parse_user_request,
+)
 
 builder.add_node(
     "search",
@@ -38,9 +40,13 @@ builder.add_node(
     review_flights,
 )
 
-
 builder.add_edge(
     START,
+    "input",
+)
+
+builder.add_edge(
+    "input",
     "search",
 )
 
@@ -58,30 +64,46 @@ builder.add_edge(
     "ranking",
     "review",
 )
-
-
 
 graph = builder.compile()
 
 result = graph.invoke({
-    "origin": "Fortaleza",
-    "destination": "São Paulo",
-    "departure_date": "2026-12-10",
 
-    "max_price": 800,
-    "max_stops": 1,
-    "max_duration_minutes": 420,
+    "user_request": (
+        "Quero viajar de Fortaleza para São Paulo "
+        "no dia 10 de dezembro de 2026. "
+        "Quero gastar no máximo 800 reais, "
+        "aceito no máximo uma escala "
+        "e não quero viagens com mais de 7 horas."
+    ),
 
     "flights": [],
     "filtered_flights": [],
     "ranked_flights": [],
 
+    "price_weight": 0.50,
+    "duration_weight": 0.30,
+    "stops_weight": 0.20,
+
     "approved": False,
     "review_feedback": "",
-    "review_attempts": 0,
     "review_interpretation": "",
+    "review_attempts": 0,
 })
 
+print("\n--- SOLICITAÇÃO INTERPRETADA ---")
+
+print("Origem:", result["origin"])
+print("Destino:", result["destination"])
+print("Data:", result["departure_date"])
+
+print("Preço máximo:", result["max_price"])
+print("Máximo de escalas:", result["max_stops"])
+print(
+    "Duração máxima:",
+    result["max_duration_minutes"],
+    "minutos",
+)
 
 print("\n--- RANKING ---")
 
@@ -102,7 +124,10 @@ for position, flight in enumerate(
 
 print("\n--- REVIEW ---")
 print(result["review_feedback"])
-
+print("\nPesos após review:")
+print("\nPreço: ", result["price_weight"])
+print("\nDuração: ", result["duration_weight"])
+print("\nParadas: ", result["stops_weight"])
 print("\n--- INTERPRETATION ---")
 print(result["review_interpretation"])
 

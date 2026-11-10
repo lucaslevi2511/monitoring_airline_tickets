@@ -17,6 +17,7 @@ class RankedFlight(Flight):
 
 
 class FlightState(TypedDict):
+    user_request: str
     origin: str
     destination: str
     departure_date: str
@@ -28,6 +29,10 @@ class FlightState(TypedDict):
     flights: list[Flight]
     filtered_flights: list[Flight]
     ranked_flights: list[RankedFlight]
+
+    price_weight: float 
+    duration_weight: float 
+    stops_weight: float
 
     approved: bool
 
