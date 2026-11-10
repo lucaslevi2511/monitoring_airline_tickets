@@ -29,7 +29,6 @@ class FlightState(TypedDict):
     trip_type: str
     departure_date: str
     return_date: str | None
-    
 
     max_price: float
     max_stops: int
@@ -42,9 +41,12 @@ class FlightState(TypedDict):
     price_weight: float 
     duration_weight: float 
     stops_weight: float
+    class_weight: float
 
     approved: bool
     review_feedback: str
-    review_interpretation: str
-
     review_attempts: int
+    qualitative_reviews: list[dict]
+    best_options: list[str]
+    discard_options: list[str]
+    review_conclusion: str

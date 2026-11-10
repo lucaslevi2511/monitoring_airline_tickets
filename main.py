@@ -71,7 +71,7 @@ result = graph.invoke({
 
     "user_request": (
         "Quero viajar de Fortaleza para São Paulo "
-        "no dia 20 de novembro de 2026 e voltar dia 25 de novembro de 2026 "
+        "no dia 20 de dezembro de 2026 e voltar dia 25 de dezembro de 2026 "
         "Quero gastar no máximo 4000 reais, "
         "aceito no máximo uma escala "
         "e não quero viagens com mais de 7 horas."
@@ -81,111 +81,136 @@ result = graph.invoke({
     "filtered_flights": [],
     "ranked_flights": [],
 
-    "price_weight": 0.50,
-    "duration_weight": 0.30,
+    "price_weight": 0.40,
+    "duration_weight": 0.25,
     "stops_weight": 0.20,
+    "class_weight": 0.15,
 
     "approved": False,
     "review_feedback": "",
-    "review_interpretation": "",
+    "qualitative_reviews": [],
+    "best_options": [],
+    "discard_options": [],
+    "review_conclusion": "",
     "review_attempts": 0,
 })
 
-print("\n--- SOLICITAÇÃO INTERPRETADA ---")
+print("\n=== BUSCA ===")
 
-print("Origem:", result["origin"])
-print("Destino:", result["destination"])
-print("Data:", result["departure_date"])
-print("Tipo de viagem:", result["trip_type"])
-print("Data de ida:", result["departure_date"])
-
-if result["return_date"]:
-    print("Data de volta:", result["return_date"])
-
-print("Preço máximo:", result["max_price"])
-print("Máximo de escalas:", result["max_stops"])
-print(
-    "Duração máxima:",
-    result["max_duration_minutes"],
-    "minutos",
+trip_label = (
+    "Ida e volta"
+    if result["trip_type"] == "round_trip"
+    else "Somente ida"
 )
 
-print("IATA origem:", result["origin_iata"])
-print("IATA destino:", result["destination_iata"])
+print(
+    f"{result['origin']} ({result['origin_iata']}) "
+    f"→ {result['destination']} ({result['destination_iata']})"
+)
 
-print("\n--- RANKING ---")
+print(
+    f"{trip_label} | "
+    f"Ida: {result['departure_date']}"
+    + (
+        f" | Volta: {result['return_date']}"
+        if result["return_date"]
+        else ""
+    )
+)
+
+print(
+    f"Limites: R$ {result['max_price']:.2f} | "
+    f"{result['max_stops']} escala(s) | "
+    f"{result['max_duration_minutes']} min"
+)
+
+
+print("\n=== MELHORES VOOS ===")
 
 for position, flight in enumerate(
-    result["ranked_flights"],
+    result["ranked_flights"][:10],
     start=1,
 ):
 
-    print(f"\n{position}. {flight['airline']}")
+    flight_numbers = ", ".join(
+        flight["flight_numbers"]
+    )
 
-    print(
-        "Voo(s):",
-        ", ".join(
-            flight["flight_numbers"]
-        ),
+    connections = (
+        ", ".join(flight["connection_airports"])
+        if flight["connection_airports"]
+        else "Direto"
     )
 
     print(
-        "Classe:",
-        flight["travel_class"],
+        f"\n{position}. {flight['airline']} "
+        f"({flight_numbers})"
     )
 
     print(
-        f"Horário: "
-        f"{flight['departure']} -> "
-        f"{flight['arrival']}"
+        f"   R$ {flight['price']:.2f} | "
+        f"{flight['duration_minutes']} min | "
+        f"{connections} | "
+        f"Score {flight['score']}"
     )
 
     print(
-        f"Rota: "
-        f"{flight['origin']} -> "
-        f"{flight['destination']}"
+        f"   {flight['departure']} "
+        f"→ {flight['arrival']} | "
+        f"{flight['travel_class']}"
     )
 
-    if flight["connection_airports"]:
+
+print("\n=== ANÁLISE ===")
+
+for review in result["qualitative_reviews"]:
+
+    flight_numbers = ", ".join(
+        review["flight_numbers"]
+    )
+
+    positives = "; ".join(
+        review["positives"]
+    )
+
+    negatives = "; ".join(
+        review["negatives"]
+    )
+
+    print(f"\n{flight_numbers}")
+
+    print(
+        f"   + {positives}"
+    )
+
+    if negatives:
         print(
-            "Conexões:",
-            ", ".join(
-                flight["connection_airports"]
-            ),
+            f"   - {negatives}"
         )
-    else:
-        print("Conexões: Direto")
 
     print(
-        f"Preço: R$ {flight['price']:.2f}"
-    )
-
-    print(
-        f"Duração: "
-        f"{flight['duration_minutes']} min"
-    )
-
-    print(
-        f"Escalas: "
-        f"{flight['stops']}"
-    )
-
-    print(
-        f"Score: "
-        f"{flight['score']}"
+        f"   → {review['observation']}"
     )
 
 
-print("\n--- REVIEW ---")
-print(result["review_feedback"])
-print("\nPesos após review:")
-print("\nPreço: ", result["price_weight"])
-print("\nDuração: ", result["duration_weight"])
-print("\nParadas: ", result["stops_weight"])
-print("\n--- INTERPRETATION ---")
-print(result["review_interpretation"])
+print("\n=== CONCLUSÃO ===")
 
 print(
-    "\nReview attempts:",
-    result["review_attempts"]
+    "Melhores:",
+    ", ".join(result["best_options"])
+    if result["best_options"]
+    else "Nenhuma destacada",
+)
+
+print(
+    "Descartar:",
+    ", ".join(result["discard_options"])
+    if result["discard_options"]
+    else "Nenhuma",
+)
+
+print(
+    "\n",
+    result["review_conclusion"],
+    sep="",
 )

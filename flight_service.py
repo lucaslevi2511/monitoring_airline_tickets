@@ -150,6 +150,7 @@ def rank_flight_options(
     price_weight: float,
     duration_weight: float,
     stops_weight: float,
+    class_weight: float,
 ) -> list[RankedFlight]:
 
     if not flights:
@@ -166,7 +167,7 @@ def rank_flight_options(
         flight["duration_minutes"]
         for flight in flights
     )
-
+    CLASS_SCORES = {"Economy": 0.25, "Premium Economy": 0.50, "Business": 0.75, "First": 1.00,}
     for flight in flights:
 
         price_score = (
@@ -182,10 +183,13 @@ def rank_flight_options(
             1 / (flight["stops"] + 1)
         )
 
+        class_score = CLASS_SCORES.get(flight["travel_class"], 0.25,)
+
         score = (
             price_weight * price_score
             + duration_weight * duration_score
             + stops_weight * stops_score
+            + class_weight * class_score
         )
 
         ranked.append({

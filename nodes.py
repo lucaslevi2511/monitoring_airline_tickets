@@ -45,18 +45,69 @@ class FlightRequest(BaseModel):
     max_duration_minutes: int = Field(description="Maximum total flight duration in minutes.")
 
 
+class FlightQualitativeReview(BaseModel):
+    flight_numbers: list[str] = Field(
+        description="Flight numbers being reviewed."
+    )
+
+    positives: list[str] = Field(
+        description="Main positive aspects of this flight."
+    )
+
+    negatives: list[str] = Field(
+        description="Main negative aspects or trade-offs."
+    )
+
+    observation: str = Field(
+        description=(
+            "Short qualitative observation respecting "
+            "the numerical ranking score."
+        )
+    )
+
+
 class ReviewResult(BaseModel):
-    approved: bool = Field(description="Whether the current ranking should be approved.")
+    approved: bool = Field(
+        description="Whether the current ranking is coherent."
+    )
 
-    feedback: str = Field(description="Explanation of the review decision.")
+    feedback: str = Field(
+        description="General evaluation of the ranking."
+    )
 
-    interpretation: str = Field(description="Short interpretation of the ranked flights.")
+    flight_reviews: list[FlightQualitativeReview] = Field(
+        description=(
+            "Qualitative analysis of the top ranked flights."
+        )
+    )
+
+    best_options: list[str] = Field(
+        description=(
+            "Flight numbers that provide the best overall value."
+        )
+    )
+
+    discard_options: list[str] = Field(
+        description=(
+            "Flight numbers that offer poor value compared "
+            "with better alternatives."
+        )
+    )
+
+    final_conclusion: str = Field(
+        description=(
+            "Final recommendation explaining which flights "
+            "are most worthwhile and which should be discarded."
+        )
+    )
 
     price_weight: float = Field(description="Suggested importance of price, between 0 and 1.")
 
-    duration_weight: float = Field(description="Suggested importance of duration, between 0 and 1.")
+    duration_weight: float = Field (description="Suggested importance of duration, between 0 and 1.")
 
-    stops_weight: float = Field(description="Suggested importance of number of stops, between 0 and 1.")
+    stops_weight: float = Field (description="Suggested importance of stops, between 0 and 1.")
+
+    class_weight: float = Field(description="Suggested importance of travel class, between 0 and 1.")
 
 # STRUCTURED LLMs
 
@@ -170,6 +221,7 @@ def rank_flights(state: FlightState):
         price_weight=state["price_weight"],
         duration_weight=state["duration_weight"],
         stops_weight=state["stops_weight"],
+        class_weight=state["class_weight"]
     )
 
     return {
@@ -200,49 +252,99 @@ def review_flights(
             },
             goto=END,
         )
+    top_flights = state["ranked_flights"][:10]
+    flight_text = ""
+    for position, flight in enumerate(top_flights,start=1,):
+        flight_text += f"""
+Flight {position}
+
+Flight numbers: {", ".join(flight["flight_numbers"])}
+Airline: {flight["airline"]}
+Class: {flight["travel_class"]}
+
+Route:
+{flight["origin"]} -> {flight["destination"]}
+
+Departure:
+{flight["departure"]}
+
+Arrival:
+{flight["arrival"]}
+
+Price:
+R$ {flight["price"]:.2f}
+
+Duration:
+{flight["duration_minutes"]} minutes
+
+Stops:
+{flight["stops"]}
+
+Connections:
+{", ".join(flight["connection_airports"]) if flight["connection_airports"] else "Direct"}
+
+Ranking score:
+{flight["score"]}
+---
+"""
 
     prompt = f"""
-You are a flight ranking reviewer.
+You are a flight recommendation reviewer.
 
-User restrictions:
+A deterministic ranking algorithm has already ranked the flights
+using price, duration and number of stops.
 
-Maximum price: R$ {state["max_price"]}
-Maximum stops: {state["max_stops"]}
-Maximum duration: {state["max_duration_minutes"]} minutes
+Current weights:
 
-Current ranking weights:
+Price weight: {state["price_weight"]}
+Duration weight: {state["duration_weight"]}
+Stops weight: {state["stops_weight"]}
+Class weight: {state["class_weight"]}
 
-Price: {state["price_weight"]}
-Duration: {state["duration_weight"]}
-Stops: {state["stops_weight"]}
+The numerical ranking must be respected as the primary ordering.
 
-Ranked flights:
+Your role is NOT to arbitrarily replace the ranking.
 
-{ranked}
+Your role is to provide a qualitative critical analysis that adds
+context to the numerical score.
 
-Review the ranking.
+Analyze the following top-ranked flights:
 
-Evaluate whether:
+{flight_text}
 
-1. all flights respect the restrictions;
-2. the ranking is coherent;
-3. the best flight represents a reasonable trade-off;
-4. the current ranking weights produce a sensible result.
+For each flight:
 
-If the ranking is not satisfactory, suggest new weights.
+1. Identify important positive aspects.
+2. Identify important negative aspects or trade-offs.
+3. Consider price, duration, stops, connection airports,
+   departure time and arrival time.
+4. Respect the ranking score, but point out relevant caveats.
 
-The three weights MUST sum to 1.0.
+Examples of useful observations:
 
-If the ranking is satisfactory, keep the current weights.
+- very low price but inconvenient departure time
+- slightly more expensive but much shorter trip
+- direct flight that may justify a higher price
+- connection that makes the option less attractive
+- multiple flights with very similar characteristics
+- flight that is dominated by another option
+- poor cost-benefit compared with nearby alternatives
 
-Return:
+Do not invent information that is not present in the flight data.
 
-- approval decision;
-- feedback;
-- interpretation;
-- price weight;
-- duration weight;
-- stops weight.
+After reviewing the flights:
+
+- identify the flights that offer the best overall value
+- identify flights that can reasonably be discarded
+- explain the final recommendation
+
+A flight should only be marked for discard when another option
+clearly offers better value or similar benefits with fewer disadvantages.
+
+If the ranking is already coherent, approve it.
+
+Only reject the ranking if there is a meaningful inconsistency
+between the numerical ranking and the available flight information.
 """
 
     review = review_llm.invoke(prompt)
@@ -252,11 +354,23 @@ Return:
         return Command(
             update={
                 "approved": True,
+
                 "review_feedback": review.feedback,
-                "review_interpretation": review.interpretation,
+
+                "qualitative_reviews": [
+                    item.model_dump()
+                    for item in review.flight_reviews
+                ],
+
+                "best_options": review.best_options,
+
+                "discard_options": review.discard_options,
+
+                "review_conclusion": review.final_conclusion,
+
                 "review_attempts": attempts,
             },
-            goto=END,
+        goto=END,
         )
 
     # Maximum number of review attempts reached
