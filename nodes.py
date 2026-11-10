@@ -7,6 +7,7 @@ from langgraph.graph import END
 from langgraph.types import Command
 from state import FlightState
 from mocks import MOCK_FLIGHTS
+from flight_service import search_api_flights, filter_flight_options, rank_flight_options
 
 # CONFIGURATION
 MAX_REVIEW_ATTEMPTS = 3
@@ -27,7 +28,15 @@ class FlightRequest(BaseModel):
 
     destination: str = Field(description="Brazilian destination city.")
 
+    origin_iata: str = Field(description="IATA airport code for the origin.")
+
+    destination_iata: str = Field(description="IATA airport code for the destination.")
+
+    trip_type: str = Field (description= "Trip type: 'one_way' or 'round_trip'.")
+
     departure_date: str = Field(description="Departure date in YYYY-MM-DD format.")
+
+    return_date: str = Field(description= "Return date in YYYY-MM-DD format. " "Use null for one-way trips.")
 
     max_price: float = Field(description="Maximum price in Brazilian reais.")
 
@@ -78,14 +87,26 @@ Extract:
 
 - origin city
 - destination city
+- IATA code of the main airport for the origin city
+- IATA code of the main airport for the destination city
+- trip type: one_way or round_trip
 - departure date
+- return date, if the trip is round trip
 - maximum price
 - maximum number of stops
 - maximum total flight duration
 
+Convert dates to YYYY-MM-DD.
 Convert durations to minutes.
 
-Convert the departure date to YYYY-MM-DD.
+If the user only provides a departure date, use:
+trip_type = "one_way"
+return_date = null
+
+If the user explicitly requests a return trip and provides a return date, use:
+trip_type = "round_trip"
+
+For cities with multiple airports, use the main airport for now.
 
 Do not invent information.
 """
@@ -93,23 +114,33 @@ Do not invent information.
     request = input_llm.invoke(prompt)
 
     return {
-        "origin": request.origin,
-        "destination": request.destination,
-        "departure_date": request.departure_date,
-        "max_price": request.max_price,
-        "max_stops": request.max_stops,
-        "max_duration_minutes": request.max_duration_minutes,
-    }
+    "origin": request.origin,
+    "destination": request.destination,
+
+    "origin_iata": request.origin_iata,
+    "destination_iata": request.destination_iata,
+
+    "trip_type": request.trip_type,
+
+    "departure_date": request.departure_date,
+    "return_date": request.return_date,
+
+    "max_price": request.max_price,
+    "max_stops": request.max_stops,
+    "max_duration_minutes": request.max_duration_minutes,
+}
 
 # SEARCH NODE
 
 def search_flights(state: FlightState):
 
-    flights = [
-        flight
-        for flight in MOCK_FLIGHTS
-        if (flight["origin"] == state["origin"] and flight["destination"] == state["destination"])
-    ]
+    flights = search_api_flights(
+        origin=state["origin_iata"],
+        destination=state["destination_iata"],
+        departure_date=state["departure_date"],
+        trip_type = state["trip_type"],
+        return_date=state["return_date"]
+    )
 
     return {
         "flights": flights
@@ -119,23 +150,12 @@ def search_flights(state: FlightState):
 
 def filter_flights(state: FlightState):
 
-    filtered = []
-
-    for flight in state["flights"]:
-
-        if flight["price"] > state["max_price"]:
-            continue
-
-        if flight["stops"] > state["max_stops"]:
-            continue
-
-        if (
-            flight["duration_minutes"]
-            > state["max_duration_minutes"]
-        ):
-            continue
-
-        filtered.append(flight)
+    filtered = filter_flight_options(
+        flights=state["flights"],
+        max_price=state["max_price"],
+        max_stops=state["max_stops"],
+        max_duration_minutes=state["max_duration_minutes"],
+    )
 
     return {
         "filtered_flights": filtered
@@ -145,54 +165,11 @@ def filter_flights(state: FlightState):
 
 def rank_flights(state: FlightState):
 
-    flights = state["filtered_flights"]
-
-    if not flights:
-        return {
-            "ranked_flights": []
-        }
-
-    ranked = []
-
-    max_price = max(
-        flight["price"]
-        for flight in flights
-    )
-
-    max_duration = max(
-        flight["duration_minutes"]
-        for flight in flights
-    )
-
-    for flight in flights:
-
-        price_score = (
-            1 - flight["price"] / max_price
-        )
-
-        duration_score = (
-            1
-            - flight["duration_minutes"] / max_duration
-        )
-
-        stops_score = (
-            1 / (flight["stops"] + 1)
-        )
-
-        score = (
-            state["price_weight"] * price_score
-            + state["duration_weight"] * duration_score
-            + state["stops_weight"] * stops_score
-        )
-
-        ranked.append({
-            **flight,
-            "score": round(score, 3),
-        })
-
-    ranked.sort(
-        key=lambda flight: flight["score"],
-        reverse=True,
+    ranked = rank_flight_options(
+        flights=state["filtered_flights"],
+        price_weight=state["price_weight"],
+        duration_weight=state["duration_weight"],
+        stops_weight=state["stops_weight"],
     )
 
     return {

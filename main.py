@@ -71,8 +71,8 @@ result = graph.invoke({
 
     "user_request": (
         "Quero viajar de Fortaleza para São Paulo "
-        "no dia 10 de dezembro de 2026. "
-        "Quero gastar no máximo 800 reais, "
+        "no dia 20 de novembro de 2026 e voltar dia 25 de novembro de 2026 "
+        "Quero gastar no máximo 4000 reais, "
         "aceito no máximo uma escala "
         "e não quero viagens com mais de 7 horas."
     ),
@@ -96,6 +96,11 @@ print("\n--- SOLICITAÇÃO INTERPRETADA ---")
 print("Origem:", result["origin"])
 print("Destino:", result["destination"])
 print("Data:", result["departure_date"])
+print("Tipo de viagem:", result["trip_type"])
+print("Data de ida:", result["departure_date"])
+
+if result["return_date"]:
+    print("Data de volta:", result["return_date"])
 
 print("Preço máximo:", result["max_price"])
 print("Máximo de escalas:", result["max_stops"])
@@ -105,6 +110,9 @@ print(
     "minutos",
 )
 
+print("IATA origem:", result["origin_iata"])
+print("IATA destino:", result["destination_iata"])
+
 print("\n--- RANKING ---")
 
 for position, flight in enumerate(
@@ -112,13 +120,59 @@ for position, flight in enumerate(
     start=1,
 ):
 
+    print(f"\n{position}. {flight['airline']}")
+
     print(
-        f"{position}. "
-        f"{flight['airline']} | "
-        f"R$ {flight['price']:.2f} | "
-        f"{flight['duration_minutes']} min | "
-        f"{flight['stops']} escala(s) | "
-        f"Score: {flight['score']}"
+        "Voo(s):",
+        ", ".join(
+            flight["flight_numbers"]
+        ),
+    )
+
+    print(
+        "Classe:",
+        flight["travel_class"],
+    )
+
+    print(
+        f"Horário: "
+        f"{flight['departure']} -> "
+        f"{flight['arrival']}"
+    )
+
+    print(
+        f"Rota: "
+        f"{flight['origin']} -> "
+        f"{flight['destination']}"
+    )
+
+    if flight["connection_airports"]:
+        print(
+            "Conexões:",
+            ", ".join(
+                flight["connection_airports"]
+            ),
+        )
+    else:
+        print("Conexões: Direto")
+
+    print(
+        f"Preço: R$ {flight['price']:.2f}"
+    )
+
+    print(
+        f"Duração: "
+        f"{flight['duration_minutes']} min"
+    )
+
+    print(
+        f"Escalas: "
+        f"{flight['stops']}"
+    )
+
+    print(
+        f"Score: "
+        f"{flight['score']}"
     )
 
 
