@@ -70,10 +70,11 @@ graph = builder.compile()
 result = graph.invoke({
 
     "user_request": (
-        "Quero viajar de Fortaleza para São Paulo "
+        "Quero viajar de Fortaleza para Brasília "
         "no dia 20 de dezembro de 2026 e voltar dia 25 de dezembro de 2026 "
         "Quero gastar no máximo 4000 reais, "
         "aceito no máximo uma escala "
+        "quero viajar sem ser de Economy "
         "e não quero viagens com mais de 7 horas."
     ),
 
@@ -128,7 +129,7 @@ print(
 print("\n=== MELHORES VOOS ===")
 
 for position, flight in enumerate(
-    result["ranked_flights"][:10],
+    result["ranked_flights"][:5],
     start=1,
 ):
 

@@ -84,18 +84,30 @@ def normalize_serpapi_flights(
 
 # Busca
 
+TRAVEL_CLASS_MAP = {
+    "economy": "1",
+    "premium_economy": "2",
+    "business": "3",
+    "first": "4",
+}
+
 def search_api_flights(
     origin: str,
     destination: str,
     departure_date: str,
     trip_type: str,
-    return_date: str | None = None
+    travel_class: str,
+    return_date: str | None = None,
 ) -> list[Flight]:
 
     client = serpapi.Client(
         api_key=SERPAPI_KEY
     )
+    travel_class_code = TRAVEL_CLASS_MAP.get(travel_class)
 
+    if not travel_class_code:
+        raise ValueError(f"Classe de viagem inválida: {travel_class}")
+    
     params = {
         "engine": "google_flights",
         "departure_id": origin,
@@ -104,6 +116,7 @@ def search_api_flights(
         "currency": "BRL",
         "hl": "pt-BR",
         "gl": "br",
+        "travel_class": travel_class_code,
     }
     if trip_type == "round_trip":
 

@@ -44,6 +44,9 @@ class FlightRequest(BaseModel):
 
     max_duration_minutes: int = Field(description="Maximum total flight duration in minutes.")
 
+    travel_class: str = Field(
+        description=("Preferred travel class: economy, premium_economy, business, or first."))
+
 
 class FlightQualitativeReview(BaseModel):
     flight_numbers: list[str] = Field(
@@ -146,6 +149,7 @@ Extract:
 - maximum price
 - maximum number of stops
 - maximum total flight duration
+- preferred class
 
 Convert dates to YYYY-MM-DD.
 Convert durations to minutes.
@@ -179,6 +183,7 @@ Do not invent information.
     "max_price": request.max_price,
     "max_stops": request.max_stops,
     "max_duration_minutes": request.max_duration_minutes,
+    "travel_class": request.travel_class,
 }
 
 # SEARCH NODE
@@ -190,7 +195,8 @@ def search_flights(state: FlightState):
         destination=state["destination_iata"],
         departure_date=state["departure_date"],
         trip_type = state["trip_type"],
-        return_date=state["return_date"]
+        return_date=state["return_date"],
+        travel_class=state["travel_class"]
     )
 
     return {
@@ -252,7 +258,7 @@ def review_flights(
             },
             goto=END,
         )
-    top_flights = state["ranked_flights"][:10]
+    top_flights = state["ranked_flights"][:5]
     flight_text = ""
     for position, flight in enumerate(top_flights,start=1,):
         flight_text += f"""
@@ -289,64 +295,71 @@ Ranking score:
 """
 
     prompt = f"""
-You are a flight recommendation reviewer.
+Você é um revisor de recomendações de voos.
 
-A deterministic ranking algorithm has already ranked the flights
-using price, duration and number of stops.
+Um algoritmo determinístico já ranqueou os voos usando:
+- preço
+- duração
+- número de escalas
+- classe da viagem
 
-Current weights:
+Pesos atuais:
 
-Price weight: {state["price_weight"]}
-Duration weight: {state["duration_weight"]}
-Stops weight: {state["stops_weight"]}
-Class weight: {state["class_weight"]}
+Preço: {state["price_weight"]}
+Duração: {state["duration_weight"]}
+Escalas: {state["stops_weight"]}
+Classe: {state["class_weight"]}
 
-The numerical ranking must be respected as the primary ordering.
+O ranking numérico deve ser respeitado como ordenação principal.
 
-Your role is NOT to arbitrarily replace the ranking.
+Seu papel NÃO é substituir arbitrariamente o ranking.
 
-Your role is to provide a qualitative critical analysis that adds
-context to the numerical score.
+Seu papel é fornecer uma análise crítica e qualitativa que complemente
+o score numérico.
 
-Analyze the following top-ranked flights:
+Analise os seguintes voos:
 
 {flight_text}
 
-For each flight:
+Para cada voo:
 
-1. Identify important positive aspects.
-2. Identify important negative aspects or trade-offs.
-3. Consider price, duration, stops, connection airports,
-   departure time and arrival time.
-4. Respect the ranking score, but point out relevant caveats.
+1. Identifique os principais pontos positivos.
+2. Identifique os principais pontos negativos ou trade-offs.
+3. Considere preço, duração, escalas, classe, aeroportos de conexão,
+   horário de saída e horário de chegada.
+4. Respeite o score do ranking, mas faça ressalvas relevantes.
+5. Compare a opção com voos próximos no ranking.
 
-Examples of useful observations:
+Exemplos de observações úteis:
 
-- very low price but inconvenient departure time
-- slightly more expensive but much shorter trip
-- direct flight that may justify a higher price
-- connection that makes the option less attractive
-- multiple flights with very similar characteristics
-- flight that is dominated by another option
-- poor cost-benefit compared with nearby alternatives
+- preço baixo, mas horário inconveniente
+- um pouco mais caro, porém muito mais confortável
+- classe superior que pode justificar um preço maior
+- voo direto que pode justificar um preço maior
+- conexão que torna a opção menos atraente
+- voo claramente dominado por outra alternativa
+- opção com bom custo-benefício apesar de não ter o maior score
 
-Do not invent information that is not present in the flight data.
+Não invente informações que não estejam presentes nos dados.
 
-After reviewing the flights:
+Depois da análise:
 
-- identify the flights that offer the best overall value
-- identify flights that can reasonably be discarded
-- explain the final recommendation
+- identifique os voos que mais valem a pena
+- identifique os voos que podem ser descartados
+- apresente uma conclusão final justificando essas escolhas
 
-A flight should only be marked for discard when another option
-clearly offers better value or similar benefits with fewer disadvantages.
+Só indique um voo para descarte quando existir uma alternativa
+claramente melhor ou equivalente com menos desvantagens.
 
-If the ranking is already coherent, approve it.
+Se o ranking estiver coerente, aprove-o.
 
-Only reject the ranking if there is a meaningful inconsistency
-between the numerical ranking and the available flight information.
+Só rejeite o ranking se houver uma inconsistência relevante entre
+o score numérico e as características disponíveis dos voos.
+
+IMPORTANTE:
+Todas as respostas textuais devem ser escritas em português brasileiro.
+Não utilize inglês nas análises, observações ou conclusão.
 """
-
     review = review_llm.invoke(prompt)
 
     # Ranking approved

@@ -29,6 +29,7 @@ class FlightState(TypedDict):
     trip_type: str
     departure_date: str
     return_date: str | None
+    travel_class: set
 
     max_price: float
     max_stops: int
