@@ -1,5 +1,3 @@
-from mocks import MOCK_FLIGHTS
-from state import Flight
 from state import Flight, RankedFlight
 import serpapi
 import os
@@ -132,24 +130,19 @@ def search_api_flights(
     return normalize_serpapi_flights(results= results, departure_date=departure_date)
 # Filtragem
 
-def filter_flight_options(
-    flights: list[Flight],
-    max_price: float,
-    max_stops: int,
-    max_duration_minutes: int,
-) -> list[Flight]:
+def filter_flight_options(flights: list[Flight], max_price: float | None, max_stops: int | None, max_duration_minutes: int | None,) -> list[Flight]:
 
     filtered = []
 
     for flight in flights:
 
-        if flight["price"] > max_price:
+        if (max_price is not None and flight["price"] > max_price):
             continue
 
-        if flight["stops"] > max_stops:
+        if (max_stops is not None and flight["stops"] > max_stops):
             continue
 
-        if flight["duration_minutes"] > max_duration_minutes:
+        if (max_duration_minutes is not None and flight["duration_minutes"] > max_duration_minutes):
             continue
 
         filtered.append(flight)
